@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>王老师专属</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <style>
+        /* 全局样式 */
+        :root { --primary: #0066cc; --danger: #d73027; --bg: #f8f9fa; --panel-bg: #eef6ff; --panel-border: #d0e3ff; }
+        body { font-family: -apple-system, "Segoe UI", sans-serif; padding: 15px; max-width: 1000px; margin: 0 auto; background-color: var(--bg); color: #333; line-height: 1.6; }
+        h1 { text-align: center; font-size: 28px; margin-bottom: 25px; color: #222; font-weight: 800; }
+        
+        /* 面板通用样式 */
+        .panel { background: white; padding: 20px; border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.1); margin-bottom: 20px; border: 1px solid #eee; }
+        
+        /* 顶部配置和平均分输入区 */
+        .meta-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-bottom: 20px; }
+        .meta-item label { display: block; font-size: 14px; font-weight: bold; margin-bottom: 6px; color: #555; }
+        input[type="text"], input[type="number"], select { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; box-sizing: border-box; background: #fff; }
+        input:focus, select:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1); }
+        
+        /* 实时统计面板 (顶部大数据面板，调整顺序和样式) */
+        .stats-bar-top { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; background: var(--panel-bg); padding: 20px; border-radius: 12px; margin-bottom: 20px; border: 1px solid var(--panel-border); box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        .stat-box-top { text-align: center; }
+        .stat-val-top { display: block; font-size: 32px; font-weight: 900; color: var(--primary); line-height: 1; margin-bottom: 8px; }
+        .stat-label-top { font-size: 14px; color: #666; font-weight: bold; }
+
+        /* 十宫格录入区 */
+        .score-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+        @media (max-width: 768px) { .score-grid { grid-template-columns: repeat(2, 1fr); } }
+        
+        .score-item { background: #fff; border: 1px solid #eee; border-left-width: 6px; border-radius: 8px; padding: 12px; transition: transform 0.1s; }
+        .score-item:hover { transform: translateY(-2px); box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+        .score-item label { font-size: 14px; font-weight: bold; margin-bottom: 6px; display: block; }
+        .score-item input[type="number"] { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 18px; font-weight: bold; text-align: center; }
+
+        /* 按钮组 */
+        .btn-group { display: flex; gap: 12px; margin-top: 20px; flex-wrap: wrap; }
+        button { border: none; padding: 16px; border-radius: 10px; cursor: pointer; font-weight: bold; font-size: 16px; transition: 0.2s; box-shadow: 0 4px 10px rgba(0,0,0,0.1); flex: 1; min-width: 120px; }
+        .btn-clear { background: #f0f0f0; color: #555; }
+        .btn-copy { background: white; color: var(--primary); border: 2px solid var(--primary); flex: 1.5; min-width: 150px; }
+        .btn-save { background: var(--primary); color: white; flex: 2; min-width: 180px; }
+        button:active { opacity: 0.8; transform: translateY(1px); box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        button:hover { box-shadow: 0 6px 20px rgba(0,0,0,0.15); }
+
+        /* 图表容器样式 */
+        #chart-container { width: 100%; height: 500px; background: white; border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.1); padding: 15px 0; border: 1px solid #eee; }
+    </style>
+</head>
+<body>
+
+<h1>王老师定制的分数段统计</h1>
+
+<div class="panel">
+    <div class="meta-grid">
+        <div class="meta-item">
+            <label>年级</label>
+            <select id="grade" onchange="autoAction()">
+                <option value="六" selected>六年级</option>
+                <option value="七">七年级</option>
+                <option value="八">八年级</option>
+                <option value="九">九年级</option>
+            </select>
+        </div>
+        <div class="meta-item">
+            <label>班级</label>
+            <select id="classNum" onchange="autoAction()">
+                <option value="1">1班</option>
+                <option value="2">2班</option>
+                <option value="3" selected>3班</option>
+                <option value="4">4班</option>
+            </select>
+        </div>
+        <div class="meta-item" style="grid-column: span 2;">
+            <label>考试名称</label>
+            <input type="text" id="examName" value="期中考试" placeholder="如：期中考试" oninput="autoAction()">
+        </div>
+        <div class="meta-item" style="grid-column: span 2;">
+            <label>输入平均分</label>
+            <input type="number" id="exactAvg" step="0.01" placeholder="如：37.2" oninput="autoAction()">
+        </div>
+    </div>
+
+    <div class="stats-bar-top">
+        <div class="stat-box-top"><span class="stat-val-top" id="stat-total-top">0</span><span class="stat-label-top">总人数</span></div>
+        <div class="stat-box-top"><span class="stat-val-top" id="stat-avg-top">--</span><span class="stat-label-top">平均分</span></div>
+        <div class="stat-box-top"><span class="stat-val-top" id="stat-pass-top">0.0%</span><span class="stat-label-top">及格率</span></div>
+    </div>
+
+    <div class="score-grid" id="inputGrid"></div>
+
+    <div class="btn-group">
+        <button class="btn-clear" onclick="clearData()">清空</button>
+        <button class="btn-copy" onclick="copySummary()">复制简报</button>
+        <button class="btn-save" onclick="saveToImage()">保存图片</button>
+    </div>
+</div>
+
+<div id="chart-container"></div>
+
+<script>
+    // 定义分数段和颜色（保留翠绿到红褐色的颜色序列，保持颜色和image_2.png一致）
+    const segments = [
+        { r: '[90,100]', c: '#1a9850' }, // 极优
+        { r: '[80,90)', c: '#66bd63' }, // 优秀
+        { r: '[70,80)', c: '#a6d96a' }, // 良好
+        { r: '[60,70)', c: '#d9ef8b' }, // 及格边缘
+        { r: '[50,60)', c: '#fee08b' }, // 轻度不合格
+        { r: '[40,50)', c: '#fdae61' }, // 预警
+        { r: '[30,40)', c: '#f46d43' }, // 严重不合格
+        { r: '[20,30)', c: '#d73027' }, // 极差
+        { r: '[10,20)', c: '#a50026' }, // 极度危险
+        { r: '[0,10)', c: '#67001f' }  // 底部区间
+    ];
+
+    let myChart = echarts.init(document.getElementById('chart-container'));
+
+    // 初始化10个输入框
+    const grid = document.getElementById('inputGrid');
+    segments.forEach((s, i) => {
+        const div = document.createElement('div');
+        div.className = 'score-item';
+        div.style.borderLeftColor = s.c;
+        div.innerHTML = `<label>${s.r}</label>
+                         <input type="number" id="v${i}" value="0" min="0" oninput="autoAction()">`;
+        grid.appendChild(div);
+    });
+
+    function autoAction() {
+        // 读取数据
+        const data = segments.map((_, i) => parseInt(document.getElementById(`v${i}`).value) || 0);
+        const avgRaw = document.getElementById('exactAvg').value;
+        
+        // 自动计算统计数据
+        const total = data.reduce((a, b) => a + b, 0);
+        let passRate = "0.0";
+        if (total > 0) {
+            const passCount = data.slice(0, 4).reduce((a, b) => a + b, 0); // 90分到60分共4个档位
+            passRate = ((passCount / total) * 100).toFixed(1);
+        }
+
+        // 更新顶部实时统计面板（注意顺序：总人数, 平均分, 及格率，并显著增大样式）
+        document.getElementById('stat-total-top').innerText = total;
+        // 均分在面板中显示一位小数，图表中显示两位小数
+        document.getElementById('stat-avg-top').innerText = avgRaw ? parseFloat(avgRaw).toFixed(1) : '--'; 
+        document.getElementById('stat-pass-top').innerText = passRate + '%';
+
+        // 更新图表（核心优化标题和副标题排版、字号）
+        const g = document.getElementById('grade').value;
+        const c = document.getElementById('classNum').value;
+        const e = document.getElementById('examName').value;
+        // 计算并优化图表中的副标题，确保顺序为：总人数, 平均分, 及格率
+        const subtextAvg = avgRaw ? parseFloat(avgRaw).toFixed(2) : '--'; // 均分显示两位
+        
+        myChart.setOption({
+            title: { 
+                text: `${g}年级${c}班 ${e}`, // 标题，保持美观排版
+                subtext: `总人数: ${total} | 平均分: ${subtextAvg} | 及格率: ${passRate}%`, // 顺序：总人数, 平均分, 及格率
+                left: 'center', 
+                top: 0,
+                textStyle: { 
+                    fontSize: 28, // 标题字号显著增大
+                    fontWeight: 'bold', 
+                    color: '#000',
+                    lineHeight: 32 // 增加标题行高
+                },
+                subtextStyle: { 
+                    color: '#333', 
+                    fontWeight: 'bold', 
+                    fontSize: 16, // 副标题字号增大
+                    lineHeight: 20 // 增加副标题行高
+                }
+            },
+            xAxis: { 
+                type: 'category', 
+                data: segments.map(s => s.r), 
+                axisLabel: { 
+                    interval:0, 
+                    rotate: 45, 
+                    fontWeight: 'bold',
+                    fontSize: 13, // 轴标签字号增大
+                    color: '#000'
+                },
+                axisLine: { lineStyle: { color: '#000' } }
+            },
+            yAxis: { 
+                type: 'value', 
+                name: '人数',
+                nameTextStyle: { fontWeight: 'bold', fontSize: 13, color: '#000' },
+                splitLine: { lineStyle: { type: 'dashed', color: '#eee' } },
+                axisLabel: { fontWeight: 'bold', fontSize: 13, color: '#000' }
+            },
+            grid: { bottom: '15%', top: '22%', left: '8%', right: '8%' },
+            series: [{
+                type: 'bar', data: data,
+                itemStyle: { color: p => segments[p.dataIndex].c, borderColor: '#333', borderWidth: 1, borderRadius: [2,2,0,0] },
+                label: { 
+                    show: true, 
+                    position: 'top', 
+                    fontWeight: 'bold',
+                    fontSize: 16, // 数据标签字号增大
+                    color: '#000'
+                }
+            }]
+        });
+
+        // 保存状态到本地
+        localStorage.setItem('score_data_v5', JSON.stringify({ g, c, e, avgRaw, data }));
+    }
+
+    function clearData() {
+        if(confirm("确定清空吗？")) {
+            segments.forEach((_, i) => document.getElementById(`v${i}`).value = 0);
+            document.getElementById('exactAvg').value = '';
+            autoAction();
+        }
+    }
+
+    function copySummary() {
+        const avgRaw = document.getElementById('exactAvg').value;
+        if (!avgRaw) {
+            alert("⚠️ 请先输入平均分！简报中将包含均分信息。");
+            return;
+        }
+
+        const g = document.getElementById('grade').value;
+        const c = document.getElementById('classNum').value;
+        const e = document.getElementById('examName').value;
+        const avg = parseFloat(avgRaw).toFixed(2);
+        
+        const data = segments.map((_, i) => parseInt(document.getElementById(`v${i}`).value) || 0);
+        const total = data.reduce((a, b) => a + b, 0);
+        const passCount = data.slice(0, 4).reduce((a, b) => a + b, 0);
+        const passRate = total > 0 ? ((passCount / total) * 100).toFixed(1) : "0.0";
+
+        let segmentLines = "";
+        segments.forEach((s, i) => {
+            segmentLines += `• ${s.r}: ${data[i]}人\n`;
+        });
+
+        const text = `📊 【${g}年级${c}班 ${e}成绩汇报】\n\n` + 
+                     `参考人数：${total}人\n` +
+                     `平均分：${avg}分\n` +
+                     `及格率：${passRate}%\n\n` +
+                     `分数段详情：\n${segmentLines}`;
+        
+        navigator.clipboard.writeText(text).then(() => alert('✅ 简报已复制！'));
+    }
+
+    function saveToImage() {
+        if (!document.getElementById('exactAvg').value) {
+            alert("⚠️ 请输入平均分后再保存，以保证图片信息完整且顺序正确。");
+            return;
+        }
+        const url = myChart.getDataURL({ type: 'png', pixelRatio: 2, backgroundColor: '#fff' });
+        const a = document.createElement('a');
+        a.href = url;
+        const g = document.getElementById('grade').value;
+        const c = document.getElementById('classNum').value;
+        a.download = `${g}年级${c}班_成绩统计.png`;
+        a.click();
+    }
+
+    // 初始化恢复
+    window.onload = () => {
+        const saved = localStorage.getItem('score_data_v5');
+        if (saved) {
+            const s = JSON.parse(saved);
+            if (s.g) document.getElementById('grade').value = s.g;
+            if (s.c) document.getElementById('classNum').value = s.c;
+            document.getElementById('examName').value = s.e || '';
+            document.getElementById('exactAvg').value = s.avgRaw || '';
+            s.data.forEach((v, i) => document.getElementById(`v${i}`).value = v);
+        }
+        autoAction();
+    };
+    window.onresize = () => myChart.resize();
+</script>
+</body>
+</html>
